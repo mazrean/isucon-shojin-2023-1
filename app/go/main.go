@@ -1165,12 +1165,11 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 	}
 
 	conditions := []IsuCondition{}
-	var err error
 	if startTime.IsZero() {
 		query, args, err := sqlx.In("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 			"	AND `timestamp` < ? AND `condition_level` IN (?)"+
-			"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime, conditionLevelList)
+			"	ORDER BY `timestamp` DESC LIMIT ?",
+			jiaIsuUUID, endTime, conditionLevelList, limit)
 		if err != nil {
 			return nil, fmt.Errorf("db error: %v", err)
 		}
@@ -1183,8 +1182,8 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 		query, args, err := sqlx.In("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 			"	AND `timestamp` < ?"+
 			"	AND ? <= `timestamp`"+
-			"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime, startTime)
+			"	ORDER BY `timestamp` DESC LIMIT ?",
+			jiaIsuUUID, endTime, startTime, limit)
 		if err != nil {
 			return nil, fmt.Errorf("db error: %v", err)
 		}
@@ -1214,10 +1213,6 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 			}
 			conditionsResponse = append(conditionsResponse, &data)
 		}
-	}
-
-	if len(conditionsResponse) > limit {
-		conditionsResponse = conditionsResponse[:limit]
 	}
 
 	return conditionsResponse, nil
