@@ -276,7 +276,18 @@ func getSession(r *http.Request) (*sessions.Session, error) {
 	return session, nil
 }
 
+var cookieCache = isucache.NewMap[string, string]("cookie")
+
 func getUserIDFromSession(c echo.Context) (string, int, error) {
+	cookieValid := false
+	cookie, err := c.Request().Cookie(sessionName)
+	if err == nil {
+		cookieValid = true
+		if userID, ok := cookieCache.Load(cookie.Value); ok {
+			return userID, 0, nil
+		}
+	}
+
 	session, err := getSession(c.Request())
 	if err != nil {
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to get session: %v", err)
@@ -287,16 +298,18 @@ func getUserIDFromSession(c echo.Context) (string, int, error) {
 	}
 
 	jiaUserID := _jiaUserID.(string)
-	var count int
-
-	err = db.Get(&count, "SELECT COUNT(*) FROM `user` WHERE `jia_user_id` = ?",
+	var count string
+	err = db.Get(&count, "SELECT `jia_user_id` FROM `user` WHERE `jia_user_id` = ?",
 		jiaUserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", http.StatusUnauthorized, fmt.Errorf("not found: user")
+	}
 	if err != nil {
 		return "", http.StatusInternalServerError, fmt.Errorf("db error: %v", err)
 	}
 
-	if count == 0 {
-		return "", http.StatusUnauthorized, fmt.Errorf("not found: user")
+	if cookieValid {
+		cookieCache.Store(cookie.Value, jiaUserID)
 	}
 
 	return jiaUserID, 0, nil
