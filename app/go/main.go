@@ -1200,14 +1200,15 @@ func setUpConditionWorker() {
 				if !first {
 					select {
 					case req := <-isuConditionQueue.Pop():
-						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message)
+						now := time.Now()
+						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message, now)
 						latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
 							JIAIsuUUID: req.JIAIsuUUID,
 							Timestamp:  req.Timestamp,
 							IsSitting:  req.IsSitting,
 							Condition:  req.Condition,
 							Message:    req.Message,
-							CreatedAt:  time.Now(),
+							CreatedAt:  now,
 						})
 					default:
 						break LOOP
@@ -1215,14 +1216,15 @@ func setUpConditionWorker() {
 				} else {
 					first = false
 					req := <-isuConditionQueue.Pop()
-					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message)
+					now := time.Now()
+					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message, now)
 					latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
 						JIAIsuUUID: req.JIAIsuUUID,
 						Timestamp:  req.Timestamp,
 						IsSitting:  req.IsSitting,
 						Condition:  req.Condition,
 						Message:    req.Message,
-						CreatedAt:  time.Now(),
+						CreatedAt:  now,
 					})
 				}
 			}
