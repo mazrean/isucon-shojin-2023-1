@@ -212,8 +212,7 @@ func init() {
 
 func main() {
 	e := isuhttp.EchoSetting(echo.New())
-	e.Debug = true
-	e.Logger.SetLevel(log.DEBUG)
+	fmt.Println("start")
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
