@@ -906,10 +906,6 @@ type graphKey struct {
 func init() {
 	var err error
 	graphCache, err = isucache.New("graph", func(ctx context.Context, key graphKey) ([24]GraphResponse, error) {
-		res, err := generateIsuGraphResponse(db, key.jiaIsuUUID, key.date)
-		if err != nil {
-			return [24]GraphResponse{}, err
-		}
 
 		return res, nil
 	}, time.Hour, time.Hour)
@@ -953,10 +949,9 @@ func getIsuGraph(c echo.Context) error {
 		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
-	res, err := graphCache.Get(c.Request().Context(), graphKey{jiaIsuUUID, date})
+	res, err := generateIsuGraphResponse(db, jiaIsuUUID, date)
 	if err != nil {
-		c.Logger().Errorf("failed to get graph: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		return c.String(http.StatusInternalServerError, "db error")
 	}
 
 	if date.Before(time.Now().Add(-time.Hour * 24)) {
