@@ -249,8 +249,9 @@ func main() {
 		e.Logger.Fatalf("failed to connect db: %v", err)
 		return
 	}
-	db.SetMaxOpenConns(10)
 	defer db.Close()
+
+	setUpConditionWorker()
 
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
@@ -1170,7 +1171,7 @@ type IsuConditionRequest struct {
 
 var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 1000)
 
-func init() {
+func setUpConditionWorker() {
 	go func() {
 		for {
 			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`", "(?, ?, ?, ?, ?)")
