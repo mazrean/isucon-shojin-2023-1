@@ -962,7 +962,7 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 		IsBroken     float64   `db:"is_broken_percent"`
 		IsOverweight float64   `db:"is_overweight_percent"`
 	}
-	endTime := graphDate.Add(time.Hour * 25)
+	endTime := graphDate.Add(time.Hour * 24)
 	err := tx.Select(&conditions, "SELECT `jia_isu_uuid`, `timestamp_h`, SUM(`score`)*100/3/COUNT(*) AS `score_percent`, SUM(`is_sitting`)*100/COUNT(*) AS `is_sitting_percent`, SUM(`is_dirty`)*100/COUNT(*) AS `is_dirty_percent`, SUM(`is_broken`)*100/COUNT(*) AS `is_broken_percent`, SUM(`is_overweight`)*100/COUNT(*) AS `is_overweight_percent` FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND `timestamp` >= ? AND `timestamp` < ? GROUP BY `timestamp_h`", jiaIsuUUID, graphDate, endTime)
 	if err != nil {
 		return [24]GraphResponse{}, fmt.Errorf("db error: %v", err)
