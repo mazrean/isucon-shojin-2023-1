@@ -956,11 +956,11 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 	var conditions []struct {
 		JIAIsuUUID   string    `db:"jia_isu_uuid"`
 		StartAt      time.Time `db:"timestamp_h"`
-		Score        int       `db:"score_percent"`
-		IsSitting    int       `db:"is_sitting_percent"`
-		IsDirty      int       `db:"is_dirty_percent"`
-		IsBroken     int       `db:"is_broken_percent"`
-		IsOverweight int       `db:"is_overweight_percent"`
+		Score        float64   `db:"score_percent"`
+		IsSitting    float64   `db:"is_sitting_percent"`
+		IsDirty      float64   `db:"is_dirty_percent"`
+		IsBroken     float64   `db:"is_broken_percent"`
+		IsOverweight float64   `db:"is_overweight_percent"`
 	}
 	endTime := graphDate.Add(time.Hour * 25)
 	err := tx.Select(&conditions, "SELECT `jia_isu_uuid`, `timestamp_h`, SUM(`score`)*100/3/COUNT(*) AS `score_percent`, SUM(`is_sitting`)*100/COUNT(*) AS `is_sitting_percent`, SUM(`is_dirty`)*100/COUNT(*) AS `is_dirty_percent`, SUM(`is_broken`)*100/COUNT(*) AS `is_broken_percent`, SUM(`is_overweight`)*100/COUNT(*) AS `is_overweight_percent` FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND `timestamp` >= ? AND `timestamp` < ? GROUP BY `timestamp_h`", jiaIsuUUID, graphDate, endTime)
@@ -989,12 +989,12 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 
 			if dataWithInfo.StartAt.Equal(startedAt) {
 				data = &GraphDataPoint{
-					Score: dataWithInfo.Score,
+					Score: int(dataWithInfo.Score),
 					Percentage: ConditionsPercentage{
-						Sitting:      dataWithInfo.IsSitting,
-						IsBroken:     dataWithInfo.IsBroken,
-						IsOverweight: dataWithInfo.IsOverweight,
-						IsDirty:      dataWithInfo.IsDirty,
+						Sitting:      int(dataWithInfo.IsSitting),
+						IsBroken:     int(dataWithInfo.IsBroken),
+						IsOverweight: int(dataWithInfo.IsOverweight),
+						IsDirty:      int(dataWithInfo.IsDirty),
 					},
 				}
 				index++
