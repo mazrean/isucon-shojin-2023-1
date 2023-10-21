@@ -375,8 +375,8 @@ func conditionLevelInsert() error {
 		} else {
 			rawScore = scoreConditionLevelInfo
 		}
-		_, err = db.Exec("UPDATE `isu_condition` SET `condition_level` = ?, `score` = ?, `is_dirty` = ?, `is_broken` = ?, `is_overweight` = ?, `timestamp_h` = DATE_FORMAT(`timestamp`, '%Y-%m-%%dT%H:00:00.000000') WHERE `jia_isu_uuid` = ? AND `timestamp` = ?",
-			warnCount, rawScore, isDirty, isBroken, isOverweight, conditionLevel.JIAIsuUUID, conditionLevel.Timestamp)
+		_, err = db.Exec("UPDATE `isu_condition` SET `condition_level` = ?, `score` = ?, `is_dirty` = ?, `is_broken` = ?, `is_overweight` = ?, `timestamp_h` = ? WHERE `jia_isu_uuid` = ? AND `timestamp` = ?",
+			warnCount, rawScore, isDirty, isBroken, isOverweight, conditionLevel.Timestamp.Truncate(time.Hour), conditionLevel.JIAIsuUUID, conditionLevel.Timestamp)
 		if err != nil {
 			return fmt.Errorf("failed to insert condition level: %w", err)
 		}
