@@ -1323,14 +1323,15 @@ func setUpConditionWorker() {
 	go func() {
 		for {
 			first := true
-			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at`", "(?, ?, ?, ?, ?, ?)")
+			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `condition_level`, `message`, `created_at`", "(?, ?, ?, ?, ?, ?, ?)")
 		LOOP:
 			for {
 				if !first {
 					select {
 					case req := <-isuConditionQueue.Pop():
 						now := time.Now()
-						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message, now)
+						conditionLevel := strings.Count(req.Condition, "=true")
+						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, conditionLevel, req.Message, now)
 						latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
 							JIAIsuUUID: req.JIAIsuUUID,
 							Timestamp:  req.Timestamp,
@@ -1346,7 +1347,8 @@ func setUpConditionWorker() {
 					first = false
 					req := <-isuConditionQueue.Pop()
 					now := time.Now()
-					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message, now)
+					conditionLevel := strings.Count(req.Condition, "=true")
+					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, conditionLevel, req.Message, now)
 					latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
 						JIAIsuUUID: req.JIAIsuUUID,
 						Timestamp:  req.Timestamp,
