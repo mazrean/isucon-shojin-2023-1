@@ -22,9 +22,15 @@ CREATE TABLE `isu_condition` (
   `is_sitting` TINYINT(1) NOT NULL,
   `condition` VARCHAR(255) NOT NULL,
   `condition_level` TINYINT(1) NOT NULL DEFAULT 0 INVISIBLE,
+  `score` INT NOT NULL DEFAULT 0 INVISIBLE,
+  `is_dirty` BOOLEAN NOT NULL DEFAULT FALSE,
+  `is_broken` BOOLEAN NOT NULL DEFAULT FALSE,
+  `is_overweight` BOOLEAN NOT NULL DEFAULT FALSE,
   `message` VARCHAR(255) NOT NULL,
   `created_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
-  PRIMARY KEY(`jia_isu_uuid`, `timestamp`)
+  `timestamp_h` DATETIME(6) GENERATED ALWAYS AS (DATE_FORMAT(`timestamp`, '%Y-%m-%dT%H:00:00.000000')) VIRTUAL,
+  PRIMARY KEY(`jia_isu_uuid`, `timestamp`),
+  INDEX (`timestamp_h`)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
 
 CREATE TABLE `user` (
