@@ -1415,14 +1415,15 @@ func setUpConditionWorker() {
 				}
 			}
 
-			query, args := bi.Query()
-			_, err := db.Exec(
-				query,
-				args...)
-			if err != nil {
-				log.Printf("db error: %v", err)
-				continue
-			}
+			go func() {
+				query, args := bi.Query()
+				_, err := db.Exec(
+					query,
+					args...)
+				if err != nil {
+					log.Printf("db error: %v", err)
+				}
+			}()
 		}
 	}()
 }
