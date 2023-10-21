@@ -302,7 +302,25 @@ func downloader() error {
 	}
 
 	for _, image := range images {
-		err = os.WriteFile(fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, image.JIAUserID, image.JIAIsuUUID), image.Image, 0644)
+		err = os.MkdirAll(fmt.Sprintf("%s/icons/%s", frontendContentsPath, image.JIAUserID), 0755)
+		if err != nil {
+			return fmt.Errorf("failed to make directory: %w", err)
+		}
+
+		err := func() error {
+			f, err := os.Create(fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, image.JIAUserID, image.JIAIsuUUID))
+			if err != nil {
+				return fmt.Errorf("failed to create file: %w", err)
+			}
+			defer f.Close()
+
+			_, err = f.Write(image.Image)
+			if err != nil {
+				return fmt.Errorf("failed to write image: %w", err)
+			}
+
+			return nil
+		}()
 		if err != nil {
 			return fmt.Errorf("failed to write image: %w", err)
 		}
