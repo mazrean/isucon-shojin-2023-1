@@ -948,6 +948,8 @@ func getIsuGraph(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	fmt.Println(res)
+
 	return c.JSON(http.StatusOK, res)
 }
 
