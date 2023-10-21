@@ -959,7 +959,7 @@ func getIsuGraph(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	if date.Before(time.Now()) {
+	if date.Before(time.Now().Add(-time.Hour * 24)) {
 		c.Response().Header().Set("Cache-Control", "private, immutable")
 	}
 	return c.JSON(http.StatusOK, res)
