@@ -948,8 +948,6 @@ func getIsuGraph(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	fmt.Println(res)
-
 	return c.JSON(http.StatusOK, res)
 }
 
@@ -986,6 +984,7 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 		conditionTimestamps := []int64{}
 
 		startedAt := graphDate.Add(time.Hour * time.Duration(respIndex))
+		endedAt := startedAt.Add(time.Hour)
 		if index < len(conditions) {
 			dataWithInfo := conditions[index]
 
@@ -1005,7 +1004,7 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 		if timestampsIndex < len(timestamps) {
 			for ; timestampsIndex < len(timestamps); timestampsIndex++ {
 				timestamp := timestamps[timestampsIndex]
-				if timestamp.Timestamp.After(endTime) {
+				if timestamp.Timestamp.After(endedAt) {
 					break
 				}
 				conditionTimestamps = append(conditionTimestamps, timestamp.Timestamp.Unix())
@@ -1014,7 +1013,7 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 
 		responseList[respIndex] = GraphResponse{
 			StartAt:             startedAt.Unix(),
-			EndAt:               startedAt.Add(time.Hour).Unix(),
+			EndAt:               endedAt.Unix(),
 			Data:                data,
 			ConditionTimestamps: conditionTimestamps,
 		}
