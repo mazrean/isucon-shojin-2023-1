@@ -1085,7 +1085,7 @@ func calculateConditionLevel(condition string) (string, error) {
 // GET /api/trend
 // ISUの性格毎の最新のコンディション情報
 func getTrend(c echo.Context) error {
-	c.Response().Header().Set("Cache-Control", "max-age=5")
+	c.Response().Header().Set("Cache-Control", "max-age=5, public")
 
 	characterList := []Isu{}
 	err := db.Select(&characterList, "SELECT `character` FROM `isu` GROUP BY `character`")
