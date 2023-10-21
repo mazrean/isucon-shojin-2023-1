@@ -215,6 +215,7 @@ func init() {
 func main() {
 	e := isuhttp.EchoSetting(echo.New())
 	fmt.Println("start")
+	e.Logger.SetLevel(log.ERROR)
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -1201,7 +1202,7 @@ type IsuConditionRequest struct {
 	PostIsuConditionRequest
 }
 
-var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 1000)
+var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 10000)
 
 func setUpConditionWorker() {
 	go func() {
