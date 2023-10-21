@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"database/sql"
 	"encoding/json"
@@ -32,7 +31,6 @@ import (
 	isuhttp "github.com/mazrean/isucon-go-tools/http"
 	isuquery "github.com/mazrean/isucon-go-tools/query"
 	isuqueue "github.com/mazrean/isucon-go-tools/queue"
-	"github.com/motoki317/sc"
 )
 
 const (
@@ -896,24 +894,6 @@ func getIsuIcon(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-var graphCache *sc.Cache[graphKey, [24]GraphResponse]
-
-type graphKey struct {
-	jiaIsuUUID string
-	date       time.Time
-}
-
-func init() {
-	var err error
-	graphCache, err = isucache.New("graph", func(ctx context.Context, key graphKey) ([24]GraphResponse, error) {
-
-		return res, nil
-	}, time.Hour, time.Hour)
-	if err != nil {
-		panic(err)
-	}
-}
-
 // GET /api/isu/:jia_isu_uuid/graph
 // ISUのコンディショングラフ描画のための情報を取得
 func getIsuGraph(c echo.Context) error {
@@ -938,8 +918,14 @@ func getIsuGraph(c echo.Context) error {
 	}
 	date := time.Unix(datetimeInt64, 0).Truncate(time.Hour)
 
+	tx, err := db.Beginx()
+	if err != nil {
+		c.Logger().Errorf("db error: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
 	var count int
-	err = db.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
+	err = tx.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
 		jiaUserID, jiaIsuUUID)
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
@@ -949,9 +935,15 @@ func getIsuGraph(c echo.Context) error {
 		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
-	res, err := generateIsuGraphResponse(db, jiaIsuUUID, date)
+	res, err := generateIsuGraphResponse(tx, jiaIsuUUID, date)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "db error")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		c.Logger().Errorf("db error: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
 	}
 
 	if date.Before(time.Now().Add(-time.Hour * 48)) {
@@ -961,7 +953,7 @@ func getIsuGraph(c echo.Context) error {
 }
 
 // グラフのデータ点を一日分生成
-func generateIsuGraphResponse(tx *sqlx.DB, jiaIsuUUID string, graphDate time.Time) ([24]GraphResponse, error) {
+func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Time) ([24]GraphResponse, error) {
 	var conditions []struct {
 		JIAIsuUUID   string    `db:"jia_isu_uuid"`
 		StartAt      time.Time `db:"timestamp_h"`
