@@ -966,7 +966,7 @@ func getIsuGraph(c echo.Context) error {
 }
 
 // グラフのデータ点を一日分生成
-func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Time) ([24]GraphResponse, error) {
+func generateIsuGraphResponse(tx *sqlx.DB, jiaIsuUUID string, graphDate time.Time) ([24]GraphResponse, error) {
 	var conditions []struct {
 		JIAIsuUUID   string    `db:"jia_isu_uuid"`
 		StartAt      time.Time `db:"timestamp_h"`
