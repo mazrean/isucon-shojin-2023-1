@@ -252,6 +252,11 @@ func main() {
 	defer db.Close()
 
 	setUpConditionWorker()
+	err = setUpConditionCache()
+	if err != nil {
+		e.Logger.Fatalf("failed to set up condition cache: %v", err)
+		return
+	}
 
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
@@ -336,6 +341,12 @@ func postInitialize(c echo.Context) error {
 	)
 	if err != nil {
 		c.Logger().Errorf("db error : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	err = setUpConditionCache()
+	if err != nil {
+		c.Logger().Errorf("failed to set up condition cache: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
@@ -447,6 +458,32 @@ func getMe(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
+var latestConditionCache = isucache.NewAtomicMap[string, *IsuCondition, IsuCondition]("latest_condition")
+
+func setUpConditionCache() error {
+	isuList := []Isu{}
+	err := db.Select(&isuList, "SELECT * FROM `isu`")
+	if err != nil {
+		return fmt.Errorf("get isu list error: %v", err)
+	}
+
+	for _, isu := range isuList {
+		var lastCondition IsuCondition
+		err = db.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
+			isu.JIAIsuUUID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("get isu_condition error(%s): %v", isu.JIAIsuUUID, err)
+		}
+
+		latestConditionCache.Store(lastCondition.JIAIsuUUID, &lastCondition)
+	}
+
+	return nil
+}
+
 // GET /api/isu
 // ISUの一覧を取得
 func getIsuList(c echo.Context) error {
@@ -479,18 +516,7 @@ func getIsuList(c echo.Context) error {
 
 	responseList := []GetIsuListResponse{}
 	for _, isu := range isuList {
-		var lastCondition IsuCondition
-		foundLastCondition := true
-		err = tx.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
-			isu.JIAIsuUUID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				foundLastCondition = false
-			} else {
-				c.Logger().Errorf("db error: %v", err)
-				return c.NoContent(http.StatusInternalServerError)
-			}
-		}
+		lastCondition, foundLastCondition := latestConditionCache.Load(isu.JIAIsuUUID)
 
 		var formattedCondition *GetIsuConditionResponse
 		if foundLastCondition {
@@ -1111,16 +1137,8 @@ func getTrend(c echo.Context) error {
 		characterWarningIsuConditions := []*TrendCondition{}
 		characterCriticalIsuConditions := []*TrendCondition{}
 		for _, isu := range isuList {
-			var isuLastCondition IsuCondition
-			err = db.Get(&isuLastCondition,
-				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC LIMIT 1",
-				isu.JIAIsuUUID,
-			)
-			if err != nil {
-				c.Logger().Errorf("db error: %v", err)
-				return c.NoContent(http.StatusInternalServerError)
-			}
-			if errors.Is(err, sql.ErrNoRows) {
+			isuLastCondition, ok := latestConditionCache.Load(isu.JIAIsuUUID)
+			if !ok {
 				continue
 			}
 
@@ -1176,13 +1194,21 @@ func setUpConditionWorker() {
 	go func() {
 		for {
 			first := true
-			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`", "(?, ?, ?, ?, ?)")
+			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at`", "(?, ?, ?, ?, ?, ?)")
 		LOOP:
 			for {
 				if !first {
 					select {
 					case req := <-isuConditionQueue.Pop():
 						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message)
+						latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
+							JIAIsuUUID: req.JIAIsuUUID,
+							Timestamp:  req.Timestamp,
+							IsSitting:  req.IsSitting,
+							Condition:  req.Condition,
+							Message:    req.Message,
+							CreatedAt:  time.Now(),
+						})
 					default:
 						break LOOP
 					}
@@ -1190,6 +1216,14 @@ func setUpConditionWorker() {
 					first = false
 					req := <-isuConditionQueue.Pop()
 					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message)
+					latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
+						JIAIsuUUID: req.JIAIsuUUID,
+						Timestamp:  req.Timestamp,
+						IsSitting:  req.IsSitting,
+						Condition:  req.Condition,
+						Message:    req.Message,
+						CreatedAt:  time.Now(),
+					})
 				}
 			}
 
