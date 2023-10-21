@@ -1175,14 +1175,21 @@ var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queu
 func setUpConditionWorker() {
 	go func() {
 		for {
+			first := true
 			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`", "(?, ?, ?, ?, ?)")
 		LOOP:
 			for {
-				select {
-				case req := <-isuConditionQueue.Pop():
+				if !first {
+					select {
+					case req := <-isuConditionQueue.Pop():
+						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message)
+					default:
+						break LOOP
+					}
+				} else {
+					first = false
+					req := <-isuConditionQueue.Pop()
 					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, req.Message)
-				default:
-					break LOOP
 				}
 			}
 
