@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -259,6 +260,12 @@ func main() {
 		return
 	}
 
+	err = downloader()
+	if err != nil {
+		e.Logger.Fatalf("failed to download images: %v", err)
+		return
+	}
+
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
 		e.Logger.Fatalf("missing: POST_ISUCONDITION_TARGET_BASE_URL")
@@ -267,6 +274,41 @@ func main() {
 
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
 	e.Logger.Fatal(e.Start(serverPort))
+}
+
+func downloader() error {
+	_, err := os.Stat(frontendContentsPath + "/icons")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check icons directory: %w", err)
+	}
+
+	if !os.IsNotExist(err) {
+		return nil
+	}
+
+	err = os.Mkdir(frontendContentsPath+"/icons", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to make icons directory: %w", err)
+	}
+
+	var images []struct {
+		JIAUserID  string `db:"jia_user_id"`
+		JIAIsuUUID string `db:"jia_isu_uuid"`
+		Image      []byte `db:"image"`
+	}
+	err = db.Select(&images, "SELECT `jia_user_id`,`jia_isu_uuid`, `image` FROM `isu`")
+	if err != nil {
+		return fmt.Errorf("failed to get images: %w", err)
+	}
+
+	for _, image := range images {
+		err = os.WriteFile(fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, image.JIAUserID, image.JIAIsuUUID), image.Image, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to write image: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func getSession(r *http.Request) (*sessions.Session, error) {
@@ -594,14 +636,15 @@ func postIsu(c echo.Context) error {
 		useDefaultImage = true
 	}
 
-	var image []byte
-
+	var image io.Reader
 	if useDefaultImage {
-		image, err = ioutil.ReadFile(defaultIconFilePath)
+		file, err := os.Open(defaultIconFilePath)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.NoContent(http.StatusInternalServerError)
 		}
+		defer file.Close()
+		image = file
 	} else {
 		file, err := fh.Open()
 		if err != nil {
@@ -609,12 +652,25 @@ func postIsu(c echo.Context) error {
 			return c.NoContent(http.StatusInternalServerError)
 		}
 		defer file.Close()
+		image = file
+	}
+	err = os.MkdirAll(fmt.Sprintf("%s/icons/%s", frontendContentsPath, jiaUserID), 0755)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
 
-		image, err = ioutil.ReadAll(file)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
+	f, err := os.Create(fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, jiaUserID, jiaIsuUUID))
+	if err != nil {
+		c.Logger().Error(err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, image)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.NoContent(http.StatusInternalServerError)
 	}
 
 	tx, err := db.Beginx()
@@ -626,7 +682,7 @@ func postIsu(c echo.Context) error {
 
 	_, err = tx.Exec("INSERT INTO `isu`"+
 		"	(`jia_isu_uuid`, `name`, `image`, `jia_user_id`) VALUES (?, ?, ?, ?)",
-		jiaIsuUUID, isuName, image, jiaUserID)
+		jiaIsuUUID, isuName, []byte{}, jiaUserID)
 	if err != nil {
 		mysqlErr, ok := err.(*mysql.MySQLError)
 
@@ -718,19 +774,8 @@ func getIsuID(c echo.Context) error {
 
 	jiaIsuUUID := c.Param("jia_isu_uuid")
 
-	var res Isu
-	err = db.Get(&res, "SELECT * FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
-		jiaUserID, jiaIsuUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.String(http.StatusNotFound, "not found: isu")
-		}
-
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	return c.JSON(http.StatusOK, res)
+	c.Response().Header().Set("X-Accel-Redirect", fmt.Sprintf("/icons/%s/%s.jpg", jiaUserID, jiaIsuUUID))
+	return c.NoContent(http.StatusOK)
 }
 
 // GET /api/isu/:jia_isu_uuid/icon
