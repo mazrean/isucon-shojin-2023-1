@@ -375,7 +375,7 @@ func conditionLevelInsert() error {
 		} else {
 			rawScore = scoreConditionLevelInfo
 		}
-		_, err = db.Exec("UPDATE `isu_condition` SET `condition_level` = ?, `score` = ?, `is_dirty` = ?, `is_broken` = ?, `is_overweight` = ? WHERE `jia_isu_uuid` = ? AND `timestamp` = ?",
+		_, err = db.Exec("UPDATE `isu_condition` SET `condition_level` = ?, `score` = ?, `is_dirty` = ?, `is_broken` = ?, `is_overweight` = ?, `timestamp_h` = DATE_FORMAT(`timestamp`, '%Y-%m-%%dT%H:00:00.000000') WHERE `jia_isu_uuid` = ? AND `timestamp` = ?",
 			warnCount, conditionLevel.JIAIsuUUID, rawScore, isDirty, isBroken, isOverweight, conditionLevel.Timestamp)
 		if err != nil {
 			return fmt.Errorf("failed to insert condition level: %w", err)
@@ -1317,7 +1317,7 @@ func setUpConditionWorker() {
 	go func() {
 		for {
 			count := 0
-			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `condition_level`, `score`, `is_dirty`, `is_overweight`, `is_broken`, `message`, `created_at`", "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `condition_level`, `score`, `is_dirty`, `is_overweight`, `is_broken`, `message`, `created_at`, `timestamp_h`", "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		LOOP:
 			for {
 				if count != 0 {
@@ -1353,7 +1353,7 @@ func setUpConditionWorker() {
 						} else {
 							rawScore = scoreConditionLevelInfo
 						}
-						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, conditionLevel, rawScore, isDirty, isOverweight, isBroken, req.Message, now)
+						bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, conditionLevel, rawScore, isDirty, isOverweight, isBroken, req.Message, now, req.Timestamp.Truncate(time.Hour))
 						latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
 							JIAIsuUUID: req.JIAIsuUUID,
 							Timestamp:  req.Timestamp,
@@ -1397,7 +1397,7 @@ func setUpConditionWorker() {
 					} else {
 						rawScore = scoreConditionLevelInfo
 					}
-					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, conditionLevel, rawScore, isDirty, isOverweight, isBroken, req.Message, now)
+					bi.Add(req.JIAIsuUUID, req.Timestamp, req.IsSitting, req.Condition, conditionLevel, rawScore, isDirty, isOverweight, isBroken, req.Message, now, req.Timestamp.Truncate(time.Hour))
 					latestConditionCache.Store(req.JIAIsuUUID, &IsuCondition{
 						JIAIsuUUID: req.JIAIsuUUID,
 						Timestamp:  req.Timestamp,
