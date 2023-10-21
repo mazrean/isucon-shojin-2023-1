@@ -1203,7 +1203,7 @@ type IsuConditionRequest struct {
 	PostIsuConditionRequest
 }
 
-var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 1000)
+var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 10000)
 
 func setUpConditionWorker() {
 	go func() {
