@@ -277,13 +277,9 @@ func main() {
 }
 
 func downloader() error {
-	_, err := os.Stat(frontendContentsPath + "/icons")
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check icons directory: %w", err)
-	}
-
-	if !os.IsNotExist(err) {
-		return nil
+	err := os.RemoveAll(frontendContentsPath + "/icons")
+	if err != nil {
+		return fmt.Errorf("failed to remove icons directory: %w", err)
 	}
 
 	err = os.Mkdir(frontendContentsPath+"/icons", 0755)
@@ -421,6 +417,12 @@ func postInitialize(c echo.Context) error {
 	err = setUpConditionCache()
 	if err != nil {
 		c.Logger().Errorf("failed to set up condition cache: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	err = downloader()
+	if err != nil {
+		c.Logger().Errorf("failed to download images: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
