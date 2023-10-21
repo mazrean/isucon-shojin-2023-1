@@ -333,9 +333,9 @@ func downloader() error {
 
 func conditionLevelInsert() error {
 	type ConditionLevel struct {
-		JIAIsuUUID string `db:"jia_isu_uuid"`
-		Timestamp  int64  `db:"timestamp"`
-		Condition  string `db:"condition"`
+		JIAIsuUUID string    `db:"jia_isu_uuid"`
+		Timestamp  time.Time `db:"timestamp"`
+		Condition  string    `db:"condition"`
 	}
 
 	conditionLevels := []ConditionLevel{}
