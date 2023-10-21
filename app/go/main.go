@@ -1006,7 +1006,7 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 		if timestampsIndex < len(timestamps) {
 			for ; timestampsIndex < len(timestamps); timestampsIndex++ {
 				timestamp := timestamps[timestampsIndex]
-				if timestamp.Timestamp.After(endedAt) {
+				if timestamp.Timestamp.After(endedAt) || timestamp.Timestamp.Equal(endedAt) {
 					break
 				}
 				conditionTimestamps = append(conditionTimestamps, timestamp.Timestamp.Unix())
