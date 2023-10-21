@@ -1317,16 +1317,16 @@ type IsuConditionRequest struct {
 	PostIsuConditionRequest
 }
 
-var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 100)
+var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 100000)
 
 func setUpConditionWorker() {
 	go func() {
 		for {
-			first := true
+			count := 0
 			bi := isuquery.NewBulkInsert("isu_condition", "`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `condition_level`, `message`, `created_at`", "(?, ?, ?, ?, ?, ?, ?)")
 		LOOP:
 			for {
-				if !first {
+				if count != 0 {
 					select {
 					case req := <-isuConditionQueue.Pop():
 						now := time.Now()
@@ -1344,7 +1344,6 @@ func setUpConditionWorker() {
 						break LOOP
 					}
 				} else {
-					first = false
 					req := <-isuConditionQueue.Pop()
 					now := time.Now()
 					conditionLevel := strings.Count(req.Condition, "=true")
@@ -1357,6 +1356,10 @@ func setUpConditionWorker() {
 						Message:    req.Message,
 						CreatedAt:  now,
 					})
+				}
+				count++
+				if count >= 100 {
+					break LOOP
 				}
 			}
 
