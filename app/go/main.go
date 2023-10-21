@@ -722,6 +722,43 @@ func postIsu(c echo.Context) error {
 		useDefaultImage = true
 	}
 
+	var image io.Reader
+	if useDefaultImage {
+		file, err := os.Open(defaultIconFilePath)
+		if err != nil {
+			c.Logger().Error(err)
+			return c.NoContent(http.StatusInternalServerError)
+		}
+		defer file.Close()
+		image = file
+	} else {
+		file, err := fh.Open()
+		if err != nil {
+			c.Logger().Error(err)
+			return c.NoContent(http.StatusInternalServerError)
+		}
+		defer file.Close()
+		image = file
+	}
+	err = os.MkdirAll(fmt.Sprintf("%s/icons/%s", frontendContentsPath, jiaUserID), 0755)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	f, err := os.Create(fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, jiaUserID, jiaIsuUUID))
+	if err != nil {
+		c.Logger().Error(err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, image)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
 	tx, err := db.Beginx()
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
@@ -741,41 +778,6 @@ func postIsu(c echo.Context) error {
 
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	var image io.Reader
-	if useDefaultImage {
-		err := os.Symlink(defaultIconFilePath, fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, jiaUserID, jiaIsuUUID))
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-	} else {
-		file, err := fh.Open()
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		defer file.Close()
-
-		err = os.MkdirAll(fmt.Sprintf("%s/icons/%s", frontendContentsPath, jiaUserID), 0755)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-
-		f, err := os.Create(fmt.Sprintf("%s/icons/%s/%s.jpg", frontendContentsPath, jiaUserID, jiaIsuUUID))
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		defer f.Close()
-
-		_, err = io.Copy(f, image)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
 	}
 
 	targetURL := getJIAServiceURL(tx) + "/api/activate"
