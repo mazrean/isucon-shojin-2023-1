@@ -822,17 +822,17 @@ func getIsuGraph(c echo.Context) error {
 
 // グラフのデータ点を一日分生成
 func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Time) ([]GraphResponse, error) {
+	endTime := graphDate.Add(time.Hour * 25)
+	rows, err := tx.Queryx("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND `timestamp` >= ? AND `timestamp` <= ? ORDER BY `timestamp` ASC", jiaIsuUUID, graphDate, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("db error: %v", err)
+	}
+
 	dataPoints := []GraphDataPointWithInfo{}
 	conditionsInThisHour := []IsuCondition{}
 	timestampsInThisHour := []int64{}
 	var startTimeInThisHour time.Time
 	var condition IsuCondition
-
-	rows, err := tx.Queryx("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` ASC", jiaIsuUUID)
-	if err != nil {
-		return nil, fmt.Errorf("db error: %v", err)
-	}
-
 	for rows.Next() {
 		err = rows.StructScan(&condition)
 		if err != nil {
@@ -847,12 +847,12 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 					return nil, err
 				}
 
-				dataPoints = append(dataPoints,
-					GraphDataPointWithInfo{
-						JIAIsuUUID:          jiaIsuUUID,
-						StartAt:             startTimeInThisHour,
-						Data:                data,
-						ConditionTimestamps: timestampsInThisHour})
+				dataPoints = append(dataPoints, GraphDataPointWithInfo{
+					JIAIsuUUID:          jiaIsuUUID,
+					StartAt:             startTimeInThisHour,
+					Data:                data,
+					ConditionTimestamps: timestampsInThisHour,
+				})
 			}
 
 			startTimeInThisHour = truncatedConditionTime
@@ -877,7 +877,6 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 				ConditionTimestamps: timestampsInThisHour})
 	}
 
-	endTime := graphDate.Add(time.Hour * 24)
 	startIndex := len(dataPoints)
 	endNextIndex := len(dataPoints)
 	for i, graph := range dataPoints {
@@ -1202,7 +1201,7 @@ type IsuConditionRequest struct {
 	PostIsuConditionRequest
 }
 
-var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 10000)
+var isuConditionQueue = isuqueue.NewChannel[IsuConditionRequest]("condition_queue", 100000)
 
 func setUpConditionWorker() {
 	go func() {
