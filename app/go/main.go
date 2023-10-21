@@ -954,7 +954,7 @@ func getIsuGraph(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "db error")
 	}
 
-	if date.Before(time.Now().Add(-time.Hour * 24)) {
+	if date.Before(time.Now().Add(-time.Hour * 48)) {
 		c.Response().Header().Set("Cache-Control", "private, immutable")
 	}
 	return c.JSON(http.StatusOK, res)
