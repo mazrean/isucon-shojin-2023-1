@@ -266,6 +266,12 @@ func main() {
 		return
 	}
 
+	err = conditionLevelInsert()
+	if err != nil {
+		e.Logger.Fatalf("failed to insert condition level: %v", err)
+		return
+	}
+
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
 		e.Logger.Fatalf("missing: POST_ISUCONDITION_TARGET_BASE_URL")
@@ -319,6 +325,31 @@ func downloader() error {
 		}()
 		if err != nil {
 			return fmt.Errorf("failed to write image: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func conditionLevelInsert() error {
+	type ConditionLevel struct {
+		JIAIsuUUID string `db:"jia_isu_uuid"`
+		Timestamp  int64  `db:"timestamp"`
+		Condition  string `db:"condition"`
+	}
+
+	conditionLevels := []ConditionLevel{}
+	err := db.Select(&conditionLevels, "SELECT `jia_isu_uuid`, `timestamp`, `condition` FROM `isu_condition`")
+	if err != nil {
+		return fmt.Errorf("failed to get condition levels: %w", err)
+	}
+
+	for _, conditionLevel := range conditionLevels {
+		warnCount := strings.Count(conditionLevel.Condition, "=true")
+		_, err = db.Exec("UPDATE `isu_condition` SET `condition_level` = ? WHERE `jia_isu_uuid` = ? AND `timestamp` = ?",
+			warnCount, conditionLevel.JIAIsuUUID, conditionLevel.Timestamp)
+		if err != nil {
+			return fmt.Errorf("failed to insert condition level: %w", err)
 		}
 	}
 
@@ -423,6 +454,12 @@ func postInitialize(c echo.Context) error {
 	err = downloader()
 	if err != nil {
 		c.Logger().Errorf("failed to download images: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	err = conditionLevelInsert()
+	if err != nil {
+		c.Logger().Errorf("failed to insert condition level: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
@@ -1115,28 +1152,47 @@ func getIsuConditions(c echo.Context) error {
 // ISUのコンディションをDBから取得
 func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, conditionLevel map[string]interface{}, startTime time.Time,
 	limit int, isuName string) ([]*GetIsuConditionResponse, error) {
+	conditionLevelList := make([]int, 0, 4)
+	for level := range conditionLevel {
+		switch level {
+		case conditionLevelInfo:
+			conditionLevelList = append(conditionLevelList, 0)
+		case conditionLevelWarning:
+			conditionLevelList = append(conditionLevelList, 1, 2)
+		case conditionLevelCritical:
+			conditionLevelList = append(conditionLevelList, 3)
+		}
+	}
 
 	conditions := []IsuCondition{}
 	var err error
-
 	if startTime.IsZero() {
-		err = db.Select(&conditions,
-			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
-				"	AND `timestamp` < ?"+
-				"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime,
-		)
+		query, args, err := sqlx.In("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"	AND `timestamp` < ? AND `condition_level` IN (?)"+
+			"	ORDER BY `timestamp` DESC",
+			jiaIsuUUID, endTime, conditionLevelList)
+		if err != nil {
+			return nil, fmt.Errorf("db error: %v", err)
+		}
+
+		err = db.Select(&conditions, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("db error: %v", err)
+		}
 	} else {
-		err = db.Select(&conditions,
-			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
-				"	AND `timestamp` < ?"+
-				"	AND ? <= `timestamp`"+
-				"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime, startTime,
-		)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("db error: %v", err)
+		query, args, err := sqlx.In("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"	AND `timestamp` < ?"+
+			"	AND ? <= `timestamp`"+
+			"	ORDER BY `timestamp` DESC",
+			jiaIsuUUID, endTime, startTime)
+		if err != nil {
+			return nil, fmt.Errorf("db error: %v", err)
+		}
+
+		err = db.Select(&conditions, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("db error: %v", err)
+		}
 	}
 
 	conditionsResponse := []*GetIsuConditionResponse{}
