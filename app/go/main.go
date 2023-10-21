@@ -774,14 +774,24 @@ func getIsuID(c echo.Context) error {
 
 	jiaIsuUUID := c.Param("jia_isu_uuid")
 
-	c.Response().Header().Set("X-Accel-Redirect", fmt.Sprintf("/icons/%s/%s.jpg", jiaUserID, jiaIsuUUID))
-	return c.NoContent(http.StatusOK)
+	var res Isu
+	err = db.Get(&res, "SELECT * FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
+		jiaUserID, jiaIsuUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.String(http.StatusNotFound, "not found: isu")
+		}
+
+		c.Logger().Errorf("db error: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	return c.JSON(http.StatusOK, res)
 }
 
 // GET /api/isu/:jia_isu_uuid/icon
 // ISUのアイコンを取得
 func getIsuIcon(c echo.Context) error {
-
 	jiaUserID, errStatusCode, err := getUserIDFromSession(c)
 	if err != nil {
 		if errStatusCode == http.StatusUnauthorized {
@@ -794,20 +804,8 @@ func getIsuIcon(c echo.Context) error {
 
 	jiaIsuUUID := c.Param("jia_isu_uuid")
 
-	var image []byte
-	err = db.Get(&image, "SELECT `image` FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
-		jiaUserID, jiaIsuUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.String(http.StatusNotFound, "not found: isu")
-		}
-
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	c.Response().Header().Set("Cache-Control", "private, immutable")
-	return c.Blob(http.StatusOK, "", image)
+	c.Response().Header().Set("X-Accel-Redirect", fmt.Sprintf("/icons/%s/%s.jpg", jiaUserID, jiaIsuUUID))
+	return c.NoContent(http.StatusOK)
 }
 
 // GET /api/isu/:jia_isu_uuid/graph
